@@ -1,0 +1,7 @@
+vehicle: ["116d","118d"]
+type: manual
+gear_count: 6
+gear_ratios: [4.002, 2.130, 1.396, 1.000, 0.781, 0.668]
+final_drive_ratio: 3.077
+reverse_ratio: 3.647
+transmission_code: GS6-17DG
