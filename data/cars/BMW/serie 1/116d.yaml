@@ -2,6 +2,8 @@ model: BMW 116d F20 LCI 5 porte, MY2016 (riferimento gamma)
 unladen_mass_din_kg: 1350
 unladen_mass_eu_kg: 1425
 nedc_test_mass_kg: null
+nedc_consumption_l_100km: [4.9,4.0,4.3]
+nedc_CO2_g_km: 114
 tire_size_reference: "195/55 R16 87W (BMW technical reference 01/2015)"
 wheel_dynamic_radius_m: null
 fuel: diesel
