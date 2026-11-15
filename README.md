@@ -20,9 +20,22 @@ e parametri veicolo sufficienti.
 
 I valori 116d/118d e i rapporti cambio sono tratti dalla documentazione tecnica BMW
 01/2015 per le versioni F20 a 5 porte. Sono riferimenti OEM utili per iniziare, ma vanno
-confermati sul VIN e sulla data di produzione dell'esemplare 2016. I dati di gamma 114d
-provengono da un catalogo europeo BMW 2018 e non sostituiscono la scheda di omologazione
-del singolo veicolo.
+confermati sul VIN e sulla data di produzione dell'esemplare 2016. I dati di gamma 114d provengono da un catalogo europeo BMW 2018; il catalogo applicazioni F20N 2016 consultato indica la famiglia B37. Gli archivi distinguono più codici modello e varianti storiche, quindi il codice motore completo resta da confermare su VIN/data produzione. Queste fonti non sostituiscono la scheda di omologazione del singolo veicolo.
+
+
+## Documentazione tecnica aggiunta
+
+La documentazione dettagliata è in `docs/`:
+
+- `TECHNICAL_REFERENCE.md`: dati BMW già pubblicati, applicabilità e cautele per le tre motorizzazioni.
+- `SOURCES.md`: registro delle fonti OEM, normative e secondarie, con URL e limiti di utilizzo.
+- `DATA_ACQUISITION_PLAN.md`: procedura per acquisire e validare i 19 elementi `PENDING`.
+- `OPEN_ITEMS.md`: corrispondenza tra l'output dell'audit e le informazioni mancanti.
+- `NEDC_METHODOLOGY.md`: definizione del ciclo, massa di prova, road-load e flusso di calcolo previsto per P3.
+- `PHYSICS_MODEL.md`: equazioni effettivamente implementate e limitazioni della v0.1.0.
+- `templates/`: modelli YAML per registrare identità veicolo e provenienza dei parametri.
+
+I documenti chiariscono i dati disponibili e come acquisire quelli assenti; non riempiono i campi `PENDING` con stime non verificate.
 
 ## Installazione
 

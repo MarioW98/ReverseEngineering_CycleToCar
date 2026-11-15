@@ -1,0 +1,20 @@
+# Compilare localmente per ogni esemplare. Non committare il VIN in chiaro.
+vehicle_internal_id: "BMW_F20_2016_116d_example"
+vin_redacted: null                  # es. ultimi 7 caratteri solo in un archivio locale protetto
+production_date: null               # YYYY-MM-DD
+market: "EU"
+body: "F20 5-door"
+model_designation: null             # 114d / 116d / 118d
+bmw_type_code: null                 # codice tipo BMW (non il solo nome commerciale)
+type_approval_number: null
+variant: null
+version: null
+engine_code: null
+gearbox_code: null
+final_drive_code: null
+transmission: "manual_6_speed"
+drive: "RWD"
+source_document: null
+source_document_date: null
+verification_status: "pending"
+notes: []

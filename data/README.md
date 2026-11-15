@@ -15,3 +15,9 @@ successivi strettamente crescenti.
 `engine_maps/bsfc_map_template.csv`: punti della mappa di consumo specifico, con colonne
 `rpm,torque_nm,bsfc_g_kwh`. Usare dati della variante esatta e annotare fonte, condizioni
 di prova e unità. La mappa BSFC non è ancora interpolata dal motore di simulazione v0.1.0.
+
+For data provenance, import criteria and accepted quality levels see:
+- `../docs/SOURCES.md`
+- `../docs/DATA_ACQUISITION_PLAN.md`
+- `../docs/DATA_POLICY.md`
+- `../docs/NEDC_METHODOLOGY.md`

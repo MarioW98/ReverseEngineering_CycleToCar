@@ -11,7 +11,9 @@ max_torque_rpm_min: 1750
 max_torque_rpm_max: 2250
 engine_code: null
 engine_code_candidates:
-  - B37 family (candidate for 2016 F20 LCI; exact suffix to verify)
+  - "B37 family (2016 F20N ECE 5-door parts application catalogue)"
+  - "B37K (production code 1V51/1V52 in secondary F20 LCI archive; VIN confirmation required)"
+  - "N47D16U1 (historical 114d production-code entry 2R51; do not assume for a 2016 F20N)"
 torque_curve_file: null
 bsfc_map_file: null
 provenance:
@@ -21,7 +23,14 @@ provenance:
     quality: published_reference_not_vin_specific
   engine_code:
     status: verify_with_vin_and_production_date
-    note: "Le varianti F20 114d non sono univoche su tutto il periodo di produzione."
+    note: "Il catalogo applicazioni 2016 indica B37 per 114d F20N ECE 5 porte; l'archivio F20 LCI distingue codici modello B37K e una variante storica N47D16U1. Il codice completo va verificato con VIN e data produzione."
+    supporting_sources:
+      - title: "BMW 1 Series 2016 parts application catalogue, F20N ECE 5-door 114d"
+        url: "https://www.bmw-spare-parts.com/bmw-cars/1-Series/2016"
+        quality: secondary_parts_catalogue
+      - title: "BMW F20 LCI production-code archive"
+        url: "https://www.bimmerarchive.org/e-code/f20-lci.html"
+        quality: secondary_reference
 notes:
   - "Valori di potenza/coppia come riferimento di gamma; verificare la variante omologata del singolo veicolo."
   - "Non è disponibile una curva coppia/rpm completa: il solo picco di coppia non basta per simulare ogni punto operativo."

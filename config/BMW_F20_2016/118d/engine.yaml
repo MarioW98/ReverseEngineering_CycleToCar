@@ -12,7 +12,8 @@ max_torque_rpm_max: 3000
 engine_code: B47
 engine_code_verification: confirm_exact_suffix_with_vin
 engine_code_candidates:
-  - B47D20 family
+  - "B47D20 family"
+  - "B47U (F20 LCI model-code designation in secondary archive; exact BMW engine suffix to verify)"
 torque_curve_file: null
 bsfc_map_file: null
 provenance:
