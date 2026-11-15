@@ -1,0 +1,27 @@
+model: BMW 114d F20 LCI
+fuel: diesel
+cylinder_count: 3
+valves_per_cylinder: 4
+displacement_cc: 1496
+max_power_kw: 70
+max_power_hp_metric: 95
+max_power_rpm: 4000
+max_torque_nm: 235
+max_torque_rpm_min: 1750
+max_torque_rpm_max: 2250
+engine_code: null
+engine_code_candidates:
+  - B37 family (candidate for 2016 F20 LCI; exact suffix to verify)
+torque_curve_file: null
+bsfc_map_file: null
+provenance:
+  published_specification:
+    source: "BMW Serie 1 technical data, EU range 2018: 114d, 1496 cc, 3 cylinders, 70 kW, 235 Nm"
+    url: "https://autocatalogarchive.com/wp-content/uploads/2024/09/BMW-Serie-1-2018-EU.pdf"
+    quality: published_reference_not_vin_specific
+  engine_code:
+    status: verify_with_vin_and_production_date
+    note: "Le varianti F20 114d non sono univoche su tutto il periodo di produzione."
+notes:
+  - "Valori di potenza/coppia come riferimento di gamma; verificare la variante omologata del singolo veicolo."
+  - "Non è disponibile una curva coppia/rpm completa: il solo picco di coppia non basta per simulare ogni punto operativo."

@@ -1,0 +1,14 @@
+project_vehicle_family: BMW Serie 1 F20 LCI
+model_year_reference: 2016
+body_style: 5-door hatchback
+market: EU
+fuel: diesel
+drive_layout: front-engine, rear-wheel drive
+drive_configuration: RWD
+transmission_type: manual
+transmission_gears: 6
+configuration_status: initial_reference
+notes:
+  - "Applicazione limitata alle versioni sDrive/RWD con cambio manuale a 6 marce."
+  - "L'anno modello/immatricolazione non sostituisce la data di produzione e il VIN."
+  - "I dati comuni di carrozzeria vanno confermati per allestimento, pneumatici e omologazione."

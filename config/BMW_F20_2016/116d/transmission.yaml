@@ -1,0 +1,15 @@
+type: manual
+gear_count: 6
+gear_ratios: [4.002, 2.130, 1.396, 1.000, 0.781, 0.668]
+final_drive_ratio: 3.077
+reverse_ratio: 3.647
+transmission_code: null
+source:
+  title: "BMW Media Information, 01/2015, BMW 116d 5-door, page 57"
+  url: "https://www.press.bmwgroup.com/czech/article/attachment/T0200862CS/291892"
+  applicability: "F20 5-door 116d, RWD, 6-speed manual"
+  quality: oem_published_reference
+status: published_reference_to_confirm_for_exact_2016_vehicle
+notes:
+  - "Rapporti I-VI e rapporto finale riportati nella documentazione BMW 01/2015."
+  - "Confermare variante del cambio e rapporto al ponte sul VIN effettivo."
