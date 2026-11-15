@@ -6,6 +6,10 @@ from .models import Vehicle, Engine, Transmission, DrivingCycle
 
 def load_vehicle(yaml_path: str, torque_csv_path: str) -> Vehicle:
     """Carica un veicolo da YAML + CSV curva di coppia."""
+    # 🔧 FIX: Converti le stringhe in oggetti Path
+    yaml_path = Path(yaml_path)
+    torque_csv_path = Path(torque_csv_path)
+    
     with open(yaml_path, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
     
@@ -20,8 +24,12 @@ def load_vehicle(yaml_path: str, torque_csv_path: str) -> Vehicle:
         fuel_type=data['fuel']
     )
     
-    # Carica trasmissione (assumendo path nel YAML o hardcoded)
+    # 🔧 FIX: Ora yaml_path è un Path, quindi .parent funziona
+    # Struttura: data/cars/BMW/serie 1/116d.yaml
+    # parent = data/cars/BMW/serie 1
+    # parent.parent = data/cars/BMW  ← qui si trova il transmission YAML
     trans_yaml = yaml_path.parent.parent / f"{data['manual_transmission_code']}-transmission.yaml"
+    
     with open(trans_yaml, 'r') as f:
         trans_data = yaml.safe_load(f)
     
@@ -43,6 +51,8 @@ def load_vehicle(yaml_path: str, torque_csv_path: str) -> Vehicle:
 
 def load_cycle(csv_path: str, name: str = None) -> DrivingCycle:
     """Carica un ciclo di omologazione da CSV segmentato."""
+    # 🔧 FIX: Anche qui converti in Path per coerenza
+    csv_path = Path(csv_path)
     df = pd.read_csv(csv_path)
     
     time_list, v_kmh_list, v_ms_list, acc_list = [], [], [], []
@@ -63,7 +73,7 @@ def load_cycle(csv_path: str, name: str = None) -> DrivingCycle:
             current_time += 1
     
     return DrivingCycle(
-        name=name or Path(csv_path).stem,
+        name=name or csv_path.stem,
         time_s=np.array(time_list),
         speed_kmh=np.array(v_kmh_list),
         speed_ms=np.array(v_ms_list),
