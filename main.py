@@ -72,40 +72,76 @@ final_drive = trans['final_drive_ratio']
 results = []
 current_gear = 1
 
+# ==========================================
+# 3.2 Logica di cambio marcia NORMATIVA NEDC (Manuale)
+# ==========================================
+def get_nedc_gear(v_kmh, current_gear, acc):
+    """
+    Determina la marcia secondo lo schema di cambiata obbligatorio del ciclo NEDC 
+    per cambi manuali a 6 rapporti.
+    """
+    if v_kmh < 1.0: # Veicolo fermo
+        return 1
+    
+    # Logica di salita marcia (basata sulla velocità target del segmento, come da regolamento)
+    # Aggiungiamo una piccola isteresi (es. -2 km/h) per evitare flickering della marcia 
+    # esattamente sul punto di cambiata a causa di approssimazioni numeriche.
+    if v_kmh >= 100 and current_gear < 6:
+        return 6
+    elif v_kmh >= 70 and current_gear < 5:
+        return 5
+    elif v_kmh >= 50 and current_gear < 4:
+        return 4
+    elif v_kmh >= 35 and current_gear < 3:
+        return 3
+    elif v_kmh >= 15 and current_gear < 2:
+        return 2
+    else:
+        return 1
+
 for idx, row in df_cycle.iterrows():
     v_ms = row['v_ms']
+    v_kmh = row['v_kmh']
     acc = row['acc_ms2']
     
-    # 3.1 Calcolo delle forze resistenti
+    # 1. Determina la marcia NEDC
+    current_gear = get_nedc_gear(v_kmh, current_gear, acc)
+    
+    # 2. Calcolo RPM
+    if v_ms <= 0.1:
+        rpm = 800 # Minimo al freno
+    else:
+        wheel_rps = v_ms / (2 * np.pi * WHEEL_RADIUS)
+        engine_rps = wheel_rps * gear_ratios[current_gear - 1] * final_drive
+        rpm = max(engine_rps * 60, 800) # Mai sotto il minimo
+        
+    # 3. Calcolo Forze e Coppia
     f_aero = 0.5 * AIR_DENSITY * CX_A * (v_ms ** 2)
     f_roll = MASS * G * CRR
     f_inertia = MASS * GAMMA * acc
     f_tractive = f_aero + f_roll + f_inertia
     
-    # 3.2 Logica di cambio marcia (semplificata per NEDC: cambiata anticipata per consumi)
-    if v_ms == 0:
-        current_gear = 1
-        rpm = 800 # Minimo
+    t_wheel = f_tractive * WHEEL_RADIUS
+    # Se f_tractive <= 0, siamo in decelerazione o crociera in discesa.
+    # Nel NEDC, in decelerazione, il motore va in DFCO (Deceleration Fuel Cut-Off) 
+    # se i RPM sono sopra un certo minimo (es. 1100 RPM). Coppia richiesta = 0.
+    if f_tractive <= 0 and rpm > 1100:
+        t_engine = 0.0
     else:
-        # Calcola RPM nella marcia corrente
-        wheel_rps = v_ms / (2 * np.pi * WHEEL_RADIUS)
-        engine_rps = wheel_rps * gear_ratios[current_gear - 1] * final_drive
-        rpm = engine_rps * 60
+        t_engine = (t_wheel / (gear_ratios[current_gear - 1] * final_drive * TRANS_EFF)) if t_wheel > 0 else 0.0
         
-        # Logica di salita/discesa marce con isteresi
-        if rpm > 2200 and current_gear < 6:
-            current_gear += 1
-            wheel_rps = v_ms / (2 * np.pi * WHEEL_RADIUS)
-            engine_rps = wheel_rps * gear_ratios[current_gear - 1] * final_drive
-            rpm = engine_rps * 60
-        elif rpm < 1100 and current_gear > 1:
-            current_gear -= 1
-            wheel_rps = v_ms / (2 * np.pi * WHEEL_RADIUS)
-            engine_rps = wheel_rps * gear_ratios[current_gear - 1] * final_drive
-            rpm = engine_rps * 60
+    results.append({
+        'time': row['time'],
+        'v_kmh': v_kmh,
+        'gear': current_gear,
+        'rpm': rpm,
+        't_engine_nm': t_engine,
+        'f_tractive_n': f_tractive
+    })
             
     # Limita RPM al minimo al di sotto del quale il motore non scende (frizione o idle)
     rpm = max(rpm, 800)
+
     
     # 3.3 Calcolo Coppia Motore Richiesta
     t_wheel = f_tractive * WHEEL_RADIUS
@@ -122,6 +158,8 @@ for idx, row in df_cycle.iterrows():
     })
 
 df_sim = pd.DataFrame(results)
+
+
 
 # ==========================================
 # 4. REVERSE ENGINEERING: OTTIMIZZAZIONE BSFC
