@@ -1,0 +1,15 @@
+# Dipendenze per ReverseEngineering_CycleToCar
+# Installare con: pip install -r requirements.txt
+
+# Gestione dati e calcolo numerico
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Ottimizzazione e calcolo scientifico
+scipy>=1.10.0
+
+# Visualizzazione
+matplotlib>=3.7.0
+
+# Parsing file di configurazione
+pyyaml>=6.0

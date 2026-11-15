@@ -1,241 +1,143 @@
-import pandas as pd
-import numpy as np
-import yaml
-import matplotlib.pyplot as plt
-from scipy.optimize import minimize
+"""
+ReverseEngineering_CycleToCar - Entry Point
+============================================
 
-# ==========================================
-# 1. CARICAMENTO DATI DAL TUO REPOSITORY
-# ==========================================
-print("Caricamento dati...")
+Workflow:
+1. Carica i dati della BMW 116d F20
+2. Calibra il BSFC costante sul ciclo NEDC (target: 4.3 L/100km)
+3. Valida il modello sul ciclo EUDC (target: 4.0 L/100km)
+4. Genera report e grafici comparativi
 
-with open("data/cars/BMW/serie 1/116d.yaml", 'r', encoding='utf-8') as f:
-    car = yaml.safe_load(f)
+Usage:
+    python main.py
+"""
 
-with open("data/cars/BMW/GS6-17DZ-transmission.yaml", 'r', encoding='utf-8') as f:
-    trans = yaml.safe_load(f)
+import sys
+from pathlib import Path
 
-torque_curve = pd.read_csv("data/cars/BMW/serie 1/116d_torque_curve_oem_digitized.csv")
-nedc_segments = pd.read_csv("data/cycles/nedc.csv")
+# Aggiungi la root del progetto al path per importare src/
+PROJECT_ROOT = Path(__file__).parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
-# Parametri fissi stimati (mancanti nel YAML ma necessari per la fisica)
-AIR_DENSITY = 1.225 # kg/m^3
-CX_A = 0.64         # Cx * Area frontale (stimato per BMW F20: ~0.29 * 2.2)
-CRR = 0.011         # Coefficiente di resistenza al rotolamento (gomme standard)
-G = 9.81            # m/s^2
-MASS = car['unladen_mass_eu_kg'] + 100 # Massa di prova NEDC (massa in ordine di marcia + 100kg)
-GAMMA = 1.08        # Fattore di inerzia rotazionale (ruote, volano, albero)
-WHEEL_RADIUS = 0.31 # m (calcolato da 195/55 R16: (16*0.0254 + 2*0.195*0.55)/2)
-TRANS_EFF = 0.95    # Efficienza del cambio manuale
-DIESEL_DENSITY_G_L = 832 # g/L
+from src.loaders import load_vehicle, load_cycle
+from src.optimizer import calibrate_bsfc
+from src.simulator import simulate_consumption
+from src.visualization import plot_cycle_analysis, plot_comparison_report
 
-TARGET_CONSUMPTION = car['nedc_consumption_l_100km'][2] # 4.3 L/100km (combinato)
 
-# ==========================================
-# 2. ESPANSIONE DEL CICLO NEDC A 1 Hz
-# ==========================================
-print("Espansione ciclo NEDC a 1 Hz...")
-cycle_data = []
-current_time = 0
-
-for _, row in nedc_segments.iterrows():
-    v_start = row['start_velocity'] # km/h
-    v_end = row['end_velocity']     # km/h
-    acc = row['acceleration']       # m/s^2
-    duration = int(row['duration']) # secondi
+def main():
+    print("=" * 60)
+    print("  REVERSE ENGINEERING: CYCLE TO CAR")
+    print("  BMW 116d F20 (B37D15U0) - MY2016")
+    print("=" * 60)
     
-    for t in range(duration):
-        # La velocità nel CSV è in km/h, l'accelerazione in m/s^2. 
-        # Convertiamo l'incremento di velocità in km/h (acc * 3.6)
-        v_kmh = v_start + (acc * t * 3.6)
-        v_ms = v_kmh / 3.6
-        
-        cycle_data.append({
-            'time': current_time,
-            'v_kmh': v_kmh,
-            'v_ms': v_ms,
-            'acc_ms2': acc
-        })
-        current_time += 1
-
-df_cycle = pd.DataFrame(cycle_data)
-total_distance_km = df_cycle['v_ms'].sum() / 1000 # Distanza totale in km (dovrebbe essere ~11 km)
-print(f"Distanza totale ciclo simulato: {total_distance_km:.2f} km")
-
-# ==========================================
-# 3. SIMULAZIONE DINAMICA E CAMBIO MARCE
-# ==========================================
-print("Simulazione dinamica del veicolo...")
-gear_ratios = trans['gear_ratios']
-final_drive = trans['final_drive_ratio']
-
-results = []
-current_gear = 1
-
-# ==========================================
-# 3.2 Logica di cambio marcia NORMATIVA NEDC (Manuale)
-# ==========================================
-def get_nedc_gear(v_kmh, current_gear, acc):
-    """
-    Determina la marcia secondo lo schema di cambiata obbligatorio del ciclo NEDC 
-    per cambi manuali a 6 rapporti.
-    """
-    if v_kmh < 1.0: # Veicolo fermo
-        return 1
+    # ==========================================
+    # 1. CARICAMENTO DATI
+    # ==========================================
+    print("\n📥 [1/4] Caricamento dati veicolo e cicli...")
     
-    # Logica di salita marcia (basata sulla velocità target del segmento, come da regolamento)
-    # Aggiungiamo una piccola isteresi (es. -2 km/h) per evitare flickering della marcia 
-    # esattamente sul punto di cambiata a causa di approssimazioni numeriche.
-    if v_kmh >= 100 and current_gear < 6:
-        return 6
-    elif v_kmh >= 70 and current_gear < 5:
-        return 5
-    elif v_kmh >= 50 and current_gear < 4:
-        return 4
-    elif v_kmh >= 35 and current_gear < 3:
-        return 3
-    elif v_kmh >= 15 and current_gear < 2:
-        return 2
+    vehicle = load_vehicle(
+        yaml_path="data/cars/BMW/serie 1/116d.yaml",
+        torque_csv_path="data/cars/BMW/serie 1/116d_torque_curve_oem_digitized.csv"
+    )
+    print(f"   ✓ Veicolo: {vehicle.name}")
+    print(f"   ✓ Massa: {vehicle.mass_kg:.0f} kg | Cx·A: {vehicle.cx_a:.2f} m²")
+    print(f"   ✓ Motore: {vehicle.engine.displacement_cc:.0f} cc, "
+          f"{vehicle.engine.max_power_kw:.0f} kW, "
+          f"{vehicle.engine.max_torque_nm:.0f} Nm")
+    
+    nedc = load_cycle("data/cycles/nedc.csv", "NEDC")
+    eudc = load_cycle("data/cycles/eudc.csv", "EUDC")
+    print(f"   ✓ Ciclo NEDC: {nedc.distance_km:.2f} km in {nedc.duration_s:.0f} s")
+    print(f"   ✓ Ciclo EUDC: {eudc.distance_km:.2f} km in {eudc.duration_s:.0f} s")
+    
+    # Target dai dati di omologazione
+    TARGET_NEDC_COMBINED = 4.3  # L/100km
+    TARGET_EUDC = 4.0           # L/100km
+    
+    # ==========================================
+    # 2. CALIBRAZIONE SU NEDC
+    # ==========================================
+    print("\n🧮 [2/4] Calibrazione BSFC su ciclo NEDC...")
+    
+    bsfc_model = calibrate_bsfc(vehicle, nedc, target_consumption=TARGET_NEDC_COMBINED)
+    result_nedc = simulate_consumption(vehicle, nedc, bsfc_model)
+    
+    print(f"   ✓ BSFC calibrato: {bsfc_model.bsfc_g_kwh:.1f} g/kWh")
+    print(f"   ✓ Consumo NEDC simulato: {result_nedc['consumption_l_100km']:.2f} L/100km")
+    print(f"   ✓ Consumo NEDC target:   {TARGET_NEDC_COMBINED:.2f} L/100km")
+    print(f"   ✓ Errore: {abs(result_nedc['consumption_l_100km'] - TARGET_NEDC_COMBINED):.3f} L/100km")
+    
+    # ==========================================
+    # 3. VALIDAZIONE CROSS SU EUDC
+    # ==========================================
+    print("\n🧪 [3/4] Validazione cross su ciclo EUDC...")
+    
+    result_eudc = simulate_consumption(vehicle, eudc, bsfc_model)
+    
+    print(f"   ✓ Consumo EUDC simulato: {result_eudc['consumption_l_100km']:.2f} L/100km")
+    print(f"   ✓ Consumo EUDC target:   {TARGET_EUDC:.2f} L/100km")
+    delta = result_eudc['consumption_l_100km'] - TARGET_EUDC
+    print(f"   ✓ Δ (simulato - target): {delta:+.2f} L/100km")
+    
+    # Diagnosi
+    if abs(delta) < 0.2:
+        print("   ✅ Modello coerente: BSFC costante sufficiente")
+        model_verdict = "FLAT"
+    elif delta > 0:
+        print("   ⚠️  Modello sovrastima EUDC: BSFC reale più efficiente ad alti carichi")
+        model_verdict = "NEEDS_2D_HIGH_LOAD"
     else:
-        return 1
-
-for idx, row in df_cycle.iterrows():
-    v_ms = row['v_ms']
-    v_kmh = row['v_kmh']
-    acc = row['acc_ms2']
+        print("   ⚠️  Modello sottostima EUDC: verificare Cx·A o perdite meccaniche")
+        model_verdict = "NEEDS_2D_AERO_CHECK"
     
-    # 1. Determina la marcia NEDC
-    current_gear = get_nedc_gear(v_kmh, current_gear, acc)
+    # ==========================================
+    # 4. REPORT E VISUALIZZAZIONE
+    # ==========================================
+    print("\n📊 [4/4] Generazione report grafico...")
     
-    # 2. Calcolo RPM
-    if v_ms <= 0.1:
-        rpm = 800 # Minimo al freno
-    else:
-        wheel_rps = v_ms / (2 * np.pi * WHEEL_RADIUS)
-        engine_rps = wheel_rps * gear_ratios[current_gear - 1] * final_drive
-        rpm = max(engine_rps * 60, 800) # Mai sotto il minimo
-        
-    # 3. Calcolo Forze e Coppia
-    f_aero = 0.5 * AIR_DENSITY * CX_A * (v_ms ** 2)
-    f_roll = MASS * G * CRR
-    f_inertia = MASS * GAMMA * acc
-    f_tractive = f_aero + f_roll + f_inertia
+    # Plot dettagliato del ciclo NEDC
+    plot_cycle_analysis(
+        vehicle=vehicle,
+        cycle=nedc,
+        points=result_nedc['points'],
+        save_path="output/nedc_analysis.png"
+    )
     
-    t_wheel = f_tractive * WHEEL_RADIUS
-    # Se f_tractive <= 0, siamo in decelerazione o crociera in discesa.
-    # Nel NEDC, in decelerazione, il motore va in DFCO (Deceleration Fuel Cut-Off) 
-    # se i RPM sono sopra un certo minimo (es. 1100 RPM). Coppia richiesta = 0.
-    if f_tractive <= 0 and rpm > 1100:
-        t_engine = 0.0
-    else:
-        t_engine = (t_wheel / (gear_ratios[current_gear - 1] * final_drive * TRANS_EFF)) if t_wheel > 0 else 0.0
-        
-    results.append({
-        'time': row['time'],
-        'v_kmh': v_kmh,
-        'gear': current_gear,
-        'rpm': rpm,
-        't_engine_nm': t_engine,
-        'f_tractive_n': f_tractive
-    })
-            
-    # Limita RPM al minimo al di sotto del quale il motore non scende (frizione o idle)
-    rpm = max(rpm, 800)
-
+    # Plot comparativo NEDC vs EUDC
+    plot_comparison_report(
+        results={
+            'NEDC': result_nedc,
+            'EUDC': result_eudc
+        },
+        targets={
+            'NEDC': TARGET_NEDC_COMBINED,
+            'EUDC': TARGET_EUDC
+        },
+        bsfc_model=bsfc_model,
+        save_path="output/comparison_report.png"
+    )
     
-    # 3.3 Calcolo Coppia Motore Richiesta
-    t_wheel = f_tractive * WHEEL_RADIUS
-    # Se siamo in decelerazione (f_tractive < 0), il motore è in taglio carburante (DFCO)
-    t_engine = (t_wheel / (gear_ratios[current_gear - 1] * final_drive * TRANS_EFF)) if t_wheel > 0 else 0.0
+    print("   ✓ Grafici salvati in ./output/")
     
-    results.append({
-        'time': row['time'],
-        'v_kmh': row['v_kmh'],
-        'gear': current_gear,
-        'rpm': rpm,
-        't_engine_nm': t_engine,
-        'f_tractive_n': f_tractive
-    })
+    # ==========================================
+    # RIEPILOGO FINALE
+    # ==========================================
+    print("\n" + "=" * 60)
+    print("  RIEPILOGO FINALE")
+    print("=" * 60)
+    print(f"  BSFC calibrato:        {bsfc_model.bsfc_g_kwh:.1f} g/kWh")
+    print(f"  NEDC simulato/target:  {result_nedc['consumption_l_100km']:.2f} / {TARGET_NEDC_COMBINED:.2f} L/100km")
+    print(f"  EUDC simulato/target:  {result_eudc['consumption_l_100km']:.2f} / {TARGET_EUDC:.2f} L/100km")
+    print(f"  Verdetto modello:      {model_verdict}")
+    print("=" * 60)
+    print("\n💡 Prossimi step suggeriti:")
+    if model_verdict != "FLAT":
+        print("   → Implementare BSFCMap2D in src/engine.py")
+    print("   → Aggiungere ciclo WLTP Class 3")
+    print("   → Simulare stili di guida reali")
+    print()
 
-df_sim = pd.DataFrame(results)
 
-
-
-# ==========================================
-# 4. REVERSE ENGINEERING: OTTIMIZZAZIONE BSFC
-# ==========================================
-print("Ottimizzazione del BSFC per matchare l'omologazione...")
-
-def calculate_consumption(bsfc_constant):
-    """
-    Calcola il consumo L/100km dato un BSFC costante (g/kWh).
-    """
-    # Potenza motore in kW: P = (Coppia * RPM) / 9549
-    power_kw = (df_sim['t_engine_nm'] * df_sim['rpm']) / 9549.0
-    
-    # Energia totale in kWh (ogni riga è 1 secondo, quindi / 3600)
-    total_energy_kwh = power_kw.sum() / 3600.0
-    
-    # Massa carburante in grammi
-    fuel_mass_g = total_energy_kwh * bsfc_constant
-    
-    # Volume in litri
-    fuel_volume_l = fuel_mass_g / DIESEL_DENSITY_G_L
-    
-    # Consumo L/100km
-    consumption = (fuel_volume_l / total_distance_km) * 100
-    return consumption
-
-def objective_function(bsfc_constant):
-    """Funzione da minimizzare: differenza al quadrato tra consumo simulato e target"""
-    sim_consumption = calculate_consumption(bsfc_constant[0])
-    return (sim_consumption - TARGET_CONSUMPTION) ** 2
-
-# Esegui l'ottimizzazione (il BSFC di un diesel moderno è tipicamente tra 180 e 250 g/kWh)
-initial_guess = [220.0]
-result = minimize(objective_function, initial_guess, bounds=[(150.0, 350.0)])
-
-optimal_bsfc = result.x[0]
-final_consumption = calculate_consumption(optimal_bsfc)
-
-print("\n" + "="*50)
-print("🏆 RISULTATI REVERSE ENGINEERING")
-print("="*50)
-print(f"Consumo NEDC Dichiarato:      {TARGET_CONSUMPTION:.1f} L/100km")
-print(f"Consumo NEDC Simulato:        {final_consumption:.1f} L/100km")
-print(f"BSFC Medio Stimato (Costante): {optimal_bsfc:.1f} g/kWh")
-print(f"Energia totale richiesta al motore: {((df_sim['t_engine_nm'] * df_sim['rpm']) / 9549.0).sum() / 3600:.2f} kWh")
-print("="*50 + "\n")
-
-# ==========================================
-# 5. VISUALIZZAZIONE GRAFICA
-# ==========================================
-fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
-
-# Grafico 1: Velocità e Marcia
-ax1.plot(df_sim['time'], df_sim['v_kmh'], label='Velocità (km/h)', color='blue')
-ax1.set_ylabel('Velocità (km/h)')
-ax1.grid(True, alpha=0.3)
-ax1.legend(loc='upper left')
-
-# Grafico 2: Regime Motore
-ax2.plot(df_sim['time'], df_sim['rpm'], label='RPM', color='red')
-ax2.axhline(2200, color='red', linestyle='--', alpha=0.5, label='Soglia cambio su (simulata)')
-ax2.set_ylabel('RPM')
-ax2.grid(True, alpha=0.3)
-ax2.legend(loc='upper left')
-
-# Grafico 3: Coppia Motore Richiesta
-ax3.plot(df_sim['time'], df_sim['t_engine_nm'], label='Coppia Motore Richiesta (Nm)', color='green')
-# Sovrapposizione della curva di coppia massima OEM per contesto
-# (Interpoliamo la curva massima per mostrarla come limite)
-max_torque_at_rpm = np.interp(df_sim['rpm'], torque_curve['rpm'], torque_curve['torque_nm'])
-ax3.plot(df_sim['time'], max_torque_at_rpm, label='Coppia Max OEM (limite)', color='black', linestyle=':', alpha=0.7)
-
-ax3.set_xlabel('Tempo (secondi)')
-ax3.set_ylabel('Coppia (Nm)')
-ax3.grid(True, alpha=0.3)
-ax3.legend(loc='upper left')
-
-plt.tight_layout()
-plt.show()
+if __name__ == "__main__":
+    main()
